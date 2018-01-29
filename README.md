@@ -64,6 +64,7 @@ library(broom)
 library(brms)
 library(modelr)
 library(forcats)
+library(dotwhisker)
 ```
 
 Imagine this dataset:
@@ -89,6 +90,7 @@ ABC %>%
 A hierarchical model of this data might estimate an overall mean across the conditions (`overall_mean`), the standard deviation of the condition means (`condition_mean_sd`), the mean within each condition (`condition_mean[condition]`) and the standard deviation of the responses given a condition mean (`response_sd`):
 
 ``` stan
+
 data {
   int<lower=1> n;
   int<lower=1> n_condition;
@@ -115,6 +117,20 @@ model {
   }
 }
 ```
+
+    ## In file included from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/BH/include/boost/config.hpp:39:0,
+    ##                  from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/BH/include/boost/math/tools/config.hpp:13,
+    ##                  from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/StanHeaders/include/stan/math/rev/core/var.hpp:7,
+    ##                  from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/StanHeaders/include/stan/math/rev/core/gevv_vvv_vari.hpp:5,
+    ##                  from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/StanHeaders/include/stan/math/rev/core.hpp:12,
+    ##                  from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/StanHeaders/include/stan/math/rev/mat.hpp:4,
+    ##                  from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/StanHeaders/include/stan/math.hpp:4,
+    ##                  from /home/jose/R/x86_64-pc-linux-gnu-library/3.4/StanHeaders/include/src/stan/model/model_header.hpp:4,
+    ##                  from filed346ca217a1.cpp:8:
+    ## /home/jose/R/x86_64-pc-linux-gnu-library/3.4/BH/include/boost/config/compiler/gcc.hpp:186:0: warning: "BOOST_NO_CXX11_RVALUE_REFERENCES" redefined
+    ##  #  define BOOST_NO_CXX11_RVALUE_REFERENCES
+    ##  ^
+    ## <command-line>:0:0: note: this is the location of the previous definition
 
 ### Composing data for input to model: `compose_data`
 
@@ -178,7 +194,7 @@ m %>%
   geom_eyeh()
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-7-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-8-1.png)
 
 Or one can employ the similar "half-eye" plot:
 
@@ -189,7 +205,7 @@ m %>%
   geom_halfeyeh()
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-8-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-9-1.png)
 
 ### Plotting posteriors as quantile dotplots
 
@@ -205,7 +221,7 @@ m %>%
   scale_y_continuous(breaks = NULL)
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-9-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-10-1.png)
 
 The idea is to get away from thinking about the posterior as indicating one canonical point or interval, but instead to represent it as (say) 100 approximately equally likely points.
 
@@ -244,11 +260,11 @@ bayes_estimates
 
 | condition |    estimate|    conf.low|   conf.high|  .prob| model |
 |:----------|-----------:|-----------:|-----------:|------:|:------|
-| A         |   0.1932542|  -0.1374798|   0.5480979|   0.95| Bayes |
+| A         |   0.1932541|  -0.1374798|   0.5480979|   0.95| Bayes |
 | B         |   1.0054696|   0.6559603|   1.3464413|   0.95| Bayes |
-| C         |   1.8387243|   1.4854153|   2.1840286|   0.95| Bayes |
-| D         |   1.0128392|   0.6541362|   1.3738020|   0.95| Bayes |
-| E         |  -0.8927952|  -1.2404690|  -0.5443226|   0.95| Bayes |
+| C         |   1.8387243|   1.4854153|   2.1840288|   0.95| Bayes |
+| D         |   1.0128393|   0.6541362|   1.3738020|   0.95| Bayes |
+| E         |  -0.8927953|  -1.2404690|  -0.5443226|   0.95| Bayes |
 
 This makes it easy to bind the two estimates together and plot them:
 
@@ -258,7 +274,7 @@ bind_rows(linear_estimates, bayes_estimates) %>%
   geom_pointrangeh(position = position_dodgev(height = .3))
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-12-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-13-1.png)
 
 Shrinkage towards the overall mean is visible in the Bayesian estimates.
 
@@ -270,7 +286,7 @@ bind_rows(linear_estimates, bayes_estimates) %>%
   dotwhisker::dwplot()
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-13-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-14-1.png)
 
 ### Posterior prediction and complex custom plots
 
@@ -290,10 +306,10 @@ m %>%
   stat_pointintervalh(aes(x = condition_mean), .prob = c(.66, .95), position = position_nudge(y = -0.2)) +
   
   # data
-  geom_point(aes(x = response), data = ABC)
+  geom_point(data = ABC, aes(x = response, y = condition), inherit.aes = FALSE)
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-14-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-15-1.png)
 
 This plot shows 66% and 95% quantile credible intervals of posterior mean for each condition (point + black line); 95%, 80%, and 50% posterior predictive intervals (blue); and the data.
 
@@ -311,15 +327,15 @@ Now we will use `modelr::data_grid`, `tidybayes::add_predicted_samples`, and `ti
 
 ``` r
 mtcars %>%
-  data_grid(hp = seq_range(hp, n = 100)) %>%
+  data_grid(hp = seq_range(hp, n = 101)) %>%
   add_predicted_samples(m_mpg) %>%
   ggplot(aes(x = hp)) +
-  stat_lineribbon(aes(y = pred), .prob = c(.99, .95, .8, .5)) +
-  geom_point(aes(y = mpg), data = mtcars) +
+  stat_lineribbon(aes(x = hp, y = pred), .prob = c(.99, .95, .8, .5), inherit.aes = FALSE) +
+  geom_point(aes(y = mpg, x = hp), data = mtcars, inherit.aes = FALSE) +
   scale_fill_brewer()
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-16-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-17-1.png)
 
 `stat_lineribbon(aes(y = pred), .prob = c(.99, .95, .8, .5))` is one of several shortcut geoms that simplify common combinations of `tidybayes` functions and `ggplot` goems. It is roughly equivalent to the following:
 
@@ -331,7 +347,7 @@ mtcars %>%
   stat_summary(aes(y = pred), fun.y = median, geom = "line", color = "red", size = 1.25)
 ```
 
-Because this is all tidy data, if you wanted to build a model with interactions among different categorical variables (say a different curve for automatic and manula transmissions), you can easily generate predictions faceted over that variable (say, different curves for different transmission types). Then you could use the existing faceting features built in to ggplot to plot them.
+Because this is all tidy data, if you wanted to build a model with interactions among different categorical variables (say a different curve for automatic and manual transmissions), you can easily generate predictions faceted over that variable (say, different curves for different transmission types). Then you could use the existing faceting features built in to ggplot to plot them.
 
 Such a model might be:
 
@@ -345,14 +361,14 @@ Then we can generate and plot predictions as before (differences from above are 
 mtcars %>%
   data_grid(hp = seq_range(hp, n = 101), am) %>%    # add am to the prediction grid
   add_predicted_samples(m_mpg_am) %>%
-  ggplot(aes(x = hp, y = mpg)) +
-  stat_lineribbon(aes(y = pred), .prob = c(.99, .95, .8, .5)) +
-  geom_point(data = mtcars) +
+  ggplot() +
+  stat_lineribbon(aes(x = hp, y = pred), .prob = c(.99, .95, .8, .5), inherit.aes = FALSE) +
+  geom_point(data = mtcars, aes(x = hp, y = mpg), inherit.aes = FALSE) +
   scale_fill_brewer() +
   facet_wrap(~ am)                                  # facet by am
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-19-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-20-1.png)
 
 Or, if you would like overplotted posterior fit lines, you can instead use `tidybayes::add_fitted_samples` to get samples from fit lines (instead of predictions), select some reasonable number of them (say `n = 100`), and then plot them:
 
@@ -360,13 +376,13 @@ Or, if you would like overplotted posterior fit lines, you can instead use `tidy
 mtcars %>%
   data_grid(hp = seq_range(hp, n = 101), am) %>%
   add_fitted_samples(m_mpg_am, n = 100) %>%         # sample 100 fits from the posterior
-  ggplot(aes(x = hp, y = mpg)) +
-  geom_line(aes(y = estimate, group = .iteration), alpha = 0.2, color = "red") +
-  geom_point(data = mtcars) +
+  ggplot() +
+  geom_line(aes(x = hp, y = estimate, group = .iteration), alpha = 0.2, color = "red") +
+  geom_point(data = mtcars, aes(x = hp, y = mpg), inherit.aes = FALSE) +
   facet_wrap(~ am)
 ```
 
-![](README_files/figure-markdown_github/unnamed-chunk-20-1.png)
+![](README_files/figure-markdown_github/unnamed-chunk-21-1.png)
 
 See `vignette("tidybayes")` for a variety of additional examples and more explanation of how it works.
 

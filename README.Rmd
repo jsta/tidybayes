@@ -131,6 +131,7 @@ library(broom)
 library(brms)
 library(modelr)
 library(forcats)
+library(dotwhisker)
 ```
 
 ```{r hidden_options, include=FALSE}
@@ -164,7 +165,8 @@ ABC %>%
 
 A hierarchical model of this data might estimate an overall mean across the conditions (`overall_mean`), the standard deviation of the condition means (`condition_mean_sd`), the mean within each condition (`condition_mean[condition]`) and the standard deviation of the responses given a condition mean (`response_sd`):
 
-```{stan, output.var="ABC_stan"}
+```{stan, output.var="ABC_stan", eval=FALSE}
+
 data {
   int<lower=1> n;
   int<lower=1> n_condition;
@@ -190,6 +192,36 @@ model {
     response[i] ~ normal(condition_mean[condition[i]], response_sd);
   }
 }
+```
+
+```{r echo=FALSE, eval=TRUE}
+ABC_stan <- stan_model(model_code = 
+'data {
+  int<lower=1> n;
+  int<lower=1> n_condition;
+  int<lower=1, upper=n_condition> condition[n];
+  real response[n];
+}
+parameters {
+  real overall_mean;
+  vector[n_condition] condition_zoffset;
+  real<lower=0> response_sd;
+  real<lower=0> condition_mean_sd;
+}
+transformed parameters {
+  vector[n_condition] condition_mean;
+  condition_mean = overall_mean + condition_zoffset * condition_mean_sd;
+}
+model {
+  response_sd ~ cauchy(0, 1);         // => half-cauchy(0, 1)
+  condition_mean_sd ~ cauchy(0, 1);   // => half-cauchy(0, 1)
+  overall_mean ~ normal(0, 5);
+  condition_zoffset ~ normal(0, 1);   // => condition_mean ~ normal(overall_mean, condition_mean_sd)
+  for (i in 1:n) {
+    response[i] ~ normal(condition_mean[condition[i]], response_sd);
+  }
+}
+')
 ```
 
 ### Composing data for input to model: `compose_data`
@@ -323,7 +355,7 @@ m %>%
   stat_pointintervalh(aes(x = condition_mean), .prob = c(.66, .95), position = position_nudge(y = -0.2)) +
   
   # data
-  geom_point(aes(x = response), data = ABC)
+  geom_point(data = ABC, aes(x = response, y = condition), inherit.aes = FALSE)
 ```
 
 This plot shows 66% and 95% quantile credible intervals of posterior mean for each condition (point + black line); 95%, 80%, and 50% posterior predictive intervals (blue); and the data.
@@ -346,8 +378,8 @@ mtcars %>%
   data_grid(hp = seq_range(hp, n = 101)) %>%
   add_predicted_samples(m_mpg) %>%
   ggplot(aes(x = hp)) +
-  stat_lineribbon(aes(y = pred), .prob = c(.99, .95, .8, .5)) +
-  geom_point(aes(y = mpg), data = mtcars) +
+  stat_lineribbon(aes(x = hp, y = pred), .prob = c(.99, .95, .8, .5), inherit.aes = FALSE) +
+  geom_point(aes(y = mpg, x = hp), data = mtcars, inherit.aes = FALSE) +
   scale_fill_brewer()
 ```
 
@@ -375,9 +407,9 @@ Then we can generate and plot predictions as before (differences from above are 
 mtcars %>%
   data_grid(hp = seq_range(hp, n = 101), am) %>%    # add am to the prediction grid
   add_predicted_samples(m_mpg_am) %>%
-  ggplot(aes(x = hp, y = mpg)) +
-  stat_lineribbon(aes(y = pred), .prob = c(.99, .95, .8, .5)) +
-  geom_point(data = mtcars) +
+  ggplot() +
+  stat_lineribbon(aes(x = hp, y = pred), .prob = c(.99, .95, .8, .5), inherit.aes = FALSE) +
+  geom_point(data = mtcars, aes(x = hp, y = mpg), inherit.aes = FALSE) +
   scale_fill_brewer() +
   facet_wrap(~ am)                                  # facet by am
 ```
@@ -388,9 +420,9 @@ Or, if you would like overplotted posterior fit lines, you can instead use `tidy
 mtcars %>%
   data_grid(hp = seq_range(hp, n = 101), am) %>%
   add_fitted_samples(m_mpg_am, n = 100) %>%         # sample 100 fits from the posterior
-  ggplot(aes(x = hp, y = mpg)) +
-  geom_line(aes(y = estimate, group = .iteration), alpha = 0.2, color = "red") +
-  geom_point(data = mtcars) +
+  ggplot() +
+  geom_line(aes(x = hp, y = estimate, group = .iteration), alpha = 0.2, color = "red") +
+  geom_point(data = mtcars, aes(x = hp, y = mpg), inherit.aes = FALSE) +
   facet_wrap(~ am)
 ```
 

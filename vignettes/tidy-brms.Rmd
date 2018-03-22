@@ -34,6 +34,7 @@ The following libraries are required to run this vignette:
 ```{r setup, message = FALSE, warning = FALSE}
 library(magrittr)
 library(dplyr)
+library(forcats)
 library(tidyr)
 library(modelr)
 library(tidybayes)
@@ -307,6 +308,20 @@ m %>%
   geom_pointintervalh() 
 ```
 
+
+## Intervals with densities
+
+To see the density along with the intervals, we can use `geom_eyeh` (horizontal "eye plots", which combine intervals with violin plots), or `geom_halfeyeh` (horizontal interval + density plots):
+
+```{r}
+m %>%
+  spread_samples(b_Intercept, r_condition[condition,]) %>%
+  mutate(condition_mean = b_Intercept + r_condition) %>%
+  ggplot(aes(y = condition, x = condition_mean)) +
+  geom_halfeyeh() 
+```
+
+
 ## Posterior fits
 
 Rather than calculating conditional means manually as in the previous example, we could use `add_fitted_samples`, which is analogous to `brms::fitted.brmsfit` or `brms::posterior_linpred` (giving posterior draws from the model's linear predictor, in this case, posterior distributions of conditional means), but uses a tidy data format. We can combine it with `modelr::data_grid` to first generate a grid describing the fits we want, then transform that grid into a long-format data frame of samples of posterior fits:
@@ -328,6 +343,25 @@ ABC %>%
   ggplot(aes(x = estimate, y = condition)) +
   stat_pointintervalh(.prob = c(.66, .95))
 ```
+
+
+## Quantile dotplots
+
+Intervals are nice if the alpha level happens to line up with whatever decision you are trying to make, but getting a shape of the posterior is better (hence eye plots, above). On the other hand, making inferences from density plots is imprecise (estimating the area of one shape as a proportion of another is a hard perceptual task). Reasoning about probability in frequency formats is easier, motivating [quantile dotplots](https://github.com/mjskay/when-ish-is-my-bus/blob/master/quantile-dotplots.md), which also allow precise estimation of arbitrary intervals (down to the dot resolution of the plot, here 100):
+
+```{r}
+ABC %>%
+  data_grid(condition) %>%
+  add_fitted_samples(m) %>%
+  do(data_frame(estimate = quantile(.$estimate, ppoints(100)))) %>%
+  ggplot(aes(x = estimate)) +
+  geom_dotplot(binwidth = .04) +
+  facet_grid(fct_rev(condition) ~ .) +
+  scale_y_continuous(breaks = NULL)
+```
+
+The idea is to get away from thinking about the posterior as indicating one canonical point or interval, but instead to represent it as (say) 100 approximately equally likely points.
+
 
 ## Posterior predictions
 
@@ -466,9 +500,11 @@ m %>%
   geom_vline(xintercept = 0, linetype = "dashed") 
 ```
 
-## Ordinal and multinomial models
+## Ordinal models
 
 The `brms::fitted.brmsfit` function for ordinal and multinomial regression models in brms returns multiple estimates for each sample: one for each outcome category (in contrast to `rstanarm::stan_polr` models, which return samples from the latent linear predictor). The philosophy of `tidybayes` is to tidy whatever format is output by a model, so in keeping with that philosophy, when applied to ordinal and multinomial `brms` models, `add_fitted_samples` adds an additional column called `category` and a separate row containing the estimate for each category is output for every sample and predictor. 
+
+### Ordinal model with continuous predictor
 
 Consider this ordinal regression model:
 
@@ -504,5 +540,27 @@ plot_grid(ncol = 1, align = "v",
 )
 ```
 
+### Ordinal model with categorical predictor
 
+Here's an ordinal model with a categorical predictor:
 
+```{r}
+data(esoph)
+m_esoph_brm = brm(tobgp ~ agegp, data = esoph, family = cumulative())
+```
+
+Then we can plot predicted probabilities for each outcome category within each level of the predictor:
+
+```{r}
+esoph %>%
+  data_grid(agegp) %>%
+  add_fitted_samples(m_esoph_brm) %>%
+  # brms does not keep the category labels,
+  # but we can recover them from the original data
+  within(levels(category) <- levels(esoph$tobgp)) %>%
+  ggplot(aes(x = agegp, y = estimate, color = category)) +
+  stat_pointinterval(position = position_dodge(width = .4), .prob = c(.66, .95), show.legend = TRUE) +
+  scale_size_continuous(guide = FALSE)
+```
+
+This output should be very similar to the output from the corresponding `m_esoph_rs` model in `vignette("tidy-rstanarm")` (modulo different priors), though brms does more of the work for us to produce it than `rstanarm` does.

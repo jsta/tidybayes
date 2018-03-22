@@ -64,7 +64,8 @@ Is roughly equivalent to:
 }
 }
 \examples{
-\dontrun{
+\donttest{
+
 library(dplyr)
 
 data(RankCorr, package = "tidybayes")
@@ -79,6 +80,7 @@ RankCorr \%>\%
   as_sample_tibble() \%>\%
   gather_terms() \%>\%
   mean_qi()
+
 }
 }
 \seealso{

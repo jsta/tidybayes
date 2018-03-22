@@ -47,6 +47,8 @@ There are a few core ideas that run through the `tidybayes` API that should (hop
 
 `tidybayes` aims to support a variety of models. Currently supported models include [rstan](https://cran.r-project.org/package=rstan), [coda::mcmc and coda::mcmc.list](https://cran.r-project.org/package=coda), [runjags](https://cran.r-project.org/package=runjags), [rstanarm](https://cran.r-project.org/package=rstanarm), [brms](https://cran.r-project.org/package=brms), [MCMCglmm](https://cran.r-project.org/package=MCMCglmm), and anything with its own `as.mcmc.list` implementation. If you install the [tidybayes.rethinking](https://github.com/mjskay/tidybayes.rethinking) package, models from the [rethinking](https://github.com/rmcelreath/rethinking) package are also supported.
 
+For an up-to-date list of supported models, see `?"tidybayes-models"`.
+
 
 ## Setup
   
@@ -62,6 +64,8 @@ library(emmeans)
 library(broom)
 library(rstan)
 library(rstanarm)
+library(brms)
+library(modelr)
 library(bayesplot)
 library(tidybayes)
 ```
@@ -190,7 +194,7 @@ print(m, pars = c("overall_mean", "condition_mean_sd", "condition_mean", "respon
 Now that we have our results, the fun begins: getting the samples out in a tidy format! The default methods in Stan for extracting samples from the data do so in a nested format:
 
 ```{r}
-str(extract(m))
+str(rstan::extract(m))
 ```
 
 There are also methods for extracting samples as matrices or data frames in stan (and other model types, such as JAGS and MCMCglmm, have their own formats).
@@ -385,15 +389,32 @@ m %>%
   geom_pointintervalh()
 ```
 
-Just as the `point_interval` functions can generate an arbitrary number of intervals per estimate, so too can `geom_pointrangeh` draw an arbitrary number of intervals, though in most cases this starts to get pretty silly (and will require the use of `fatten.interval =` to make it legible). Here it is with 3:
+Just as the `point_interval` functions can generate an arbitrary number of intervals per estimate, so too can `geom_pointrangeh` draw an arbitrary number of intervals, though in most cases this starts to get pretty silly (and will require the use of `size_range =`, which determines the minimum and maximum line thickness, to make it legible). Here it is with 3:
 
 ```{r}
 m %>%
   spread_samples(condition_mean[condition]) %>%
   mean_qi(.prob = c(.95, .8, .5)) %>%
   ggplot(aes(y = fct_rev(condition), x = condition_mean)) +
-  geom_pointintervalh(fatten.interval = .25)
+  geom_pointintervalh(size_range = c(0.5, 2))
 ```
+
+
+### Plotting posteriors as quantile dotplots
+
+Intervals are nice if the alpha level happens to line up with whatever decision you are trying to make, but getting a shape of the posterior is better (hence eye plots, above). On the other hand, making inferences from density plots is imprecise (estimating the area of one shape as a proportion of another is a hard perceptual task). Reasoning about probability in frequency formats is easier, motivating [quantile dotplots](https://github.com/mjskay/when-ish-is-my-bus/blob/master/quantile-dotplots.md), which also allow precise estimation of arbitrary intervals (down to the dot resolution of the plot, here 100):
+
+```{r}
+m %>%
+  spread_samples(condition_mean[condition]) %>%
+  do(data_frame(condition_mean = quantile(.$condition_mean, ppoints(100)))) %>%
+  ggplot(aes(x = condition_mean)) +
+  geom_dotplot(binwidth = .04) +
+  facet_grid(fct_rev(condition) ~ .) +
+  scale_y_continuous(breaks = NULL)
+```
+
+The idea is to get away from thinking about the posterior as indicating one canonical point or interval, but instead to represent it as (say) 100 approximately equally likely points.
 
 
 ### Alternative estimates and intervals: mean, median, mode; qi, hdi
@@ -576,6 +597,42 @@ m %>%
 *(10 rows of `r nrow(spread_samples(m, condition_mean[condition]))`)*
 
 This result is equivalent in this case to `spread_samples(c(condition_mean, condition_zoffset)[condition])`, but does not require us to list each parameter explicitly---this can be useful, for example, in models with naming schemes like `b_[some name]` for coefficients.
+
+
+## Drawing fit curves with uncertainty
+
+To demonstrate drawing fit curves with uncertainty, let's fit a slightly naive model to part of the `mtcars` dataset using `brm`:
+
+```{r, results = "hide", message = FALSE, warning = FALSE}
+m_mpg = brm(mpg ~ hp * cyl, data = mtcars)
+```
+
+We can draw fit curves with probability bands using `tidybayes::add_fitted_samples` and `tidybayes::stat_lineribbon`:
+
+```{r}
+mtcars %>%
+  group_by(cyl) %>%
+  data_grid(hp = seq_range(hp, n = 101)) %>%
+  add_fitted_samples(m_mpg) %>%
+  ggplot(aes(x = hp, y = mpg, color = ordered(cyl))) +
+  stat_lineribbon(aes(y = estimate)) +
+  geom_point(data = mtcars) +
+  scale_fill_brewer(palette = "Greys")
+```
+
+Or we can sample a reasonable number of fit lines (say 100) and overplot them:
+
+```{r}
+mtcars %>%
+  group_by(cyl) %>%
+  data_grid(hp = seq_range(hp, n = 101)) %>%
+  add_fitted_samples(m_mpg, n = 100) %>%
+  ggplot(aes(x = hp, y = mpg, color = ordered(cyl))) +
+  geom_line(aes(y = estimate, group = paste(cyl, .iteration)), alpha = 0.25) +
+  geom_point(data = mtcars)
+```
+
+For more exmples of curve-drawing (including posterior predictions), see `vignette("tidy-brms")` or `vignette("tidy-rstanarm")`.
 
 
 ## Compatibility with other packages

@@ -64,7 +64,8 @@ globalVariables(c("term", "estimate"))
 #' @seealso \code{\link{spread_samples}}, \code{\link{as_sample_tibble}}.
 #' @keywords manip
 #' @examples
-#' \dontrun{
+#' \donttest{
+#'
 #' library(dplyr)
 #'
 #' data(RankCorr, package = "tidybayes")
@@ -79,6 +80,7 @@ globalVariables(c("term", "estimate"))
 #'   as_sample_tibble() %>%
 #'   gather_terms() %>%
 #'   mean_qi()
+#'
 #' }
 #' @importFrom stringi stri_detect_regex
 #' @importFrom magrittr %>%

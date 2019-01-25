@@ -3,6 +3,7 @@ tidybayes: Bayesian analysis + tidy data + geoms <img id="tidybayes_logo" src="m
 =====================================================================================================================
 
 [![Build Status](https://travis-ci.org/mjskay/tidybayes.png?branch=master)](https://travis-ci.org/mjskay/tidybayes)
+[![DOI](https://zenodo.org/badge/116701609.svg)](https://zenodo.org/badge/latestdoi/116701609)
 
 ![Preview of tidybayes plots](man/figures/preview.png)
 
